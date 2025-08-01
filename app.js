@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import productRouter from "./routers/productRouters.js";
 import dotenv from "dotenv";
 import cors from "cors";
+import orderRouter from "./routers/orderRouters.js";
 
 dotenv.config();
 
@@ -46,6 +47,7 @@ mongoose
 
 app.use("/users", userRouter);
 app.use("/products", productRouter);
+app.use("/orders", orderRouter);
 
 app.listen(5000, () => {
   console.log("server started");
