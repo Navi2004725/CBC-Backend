@@ -1,5 +1,6 @@
 import Order from "../../models/order.js";
 import Product from "../../models/products.js";
+import { isAdmin } from "./userControllers.js";
 
 export async function createOrder(req, res) {
   try {
@@ -78,6 +79,9 @@ export async function createOrder(req, res) {
 }
 
 export async function getOrder(req, res) {
+  const page = parseInt(req.params.page) || 1;
+  const limit = parseInt(req.params.limit) || 10;
+
   if (req.user == null) {
     res.status(401).json({
       message: "Please login to view orders",
@@ -85,12 +89,28 @@ export async function getOrder(req, res) {
     return;
   }
   try {
-    if (req.user.role !== "admin") {
-      const orders = await Order.find().sort({ date: -1 });
-      res.json(orders);
+    if (req.user.role === "admin") {
+      const ordersCount = await Order.countDocuments();
+      const totalPages = Math.ceil(ordersCount / limit);
+      const orders = await Order.find()
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .sort({ date: -1 });
+      res.json({
+        orders: orders,
+        totalPages: totalPages,
+      });
     } else {
-      const order = await Order.findOne({ email: req.user.email }).sort({ date: -1 });
-      res.json(order);
+      const ordersCount = await Order.countDocuments({ email: req.user.email });
+      const totalPages = Math.ceil(ordersCount / limit);
+      const order = await Order.findOne({ email: req.user.email })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .sort({ date: -1 });
+      res.json({
+        orders: order,
+        totalPages: totalPages,
+      });
     }
   } catch (error) {
     console.error("Error fetching order: ", error);
@@ -98,4 +118,44 @@ export async function getOrder(req, res) {
       message: "Failed to fetch order",
     });
   }
+}
+
+export function updateOrder(req, res) {
+  if (req.user == null) {
+    res.status(401).json({
+      message: "Please login to update an order",
+    });
+    return;
+  }
+
+  if (!isAdmin(req)) {
+    res.status(403).json({
+      message: "You are not authorized to update this order",
+    });
+    return;
+  }
+
+  const orderID = req.params.orderID;
+  const status = req.body.status;
+  const notes = req.body.notes;
+
+  Order.findOneAndUpdate({ orderID: orderID }, { status: status, notes: notes }, { new: true })
+    .then((order) => {
+      if (order == null) {
+        res.status(404).json({
+          message: "Order not found",
+        });
+        return;
+      }
+      res.json({
+        message: "Order updated successfully",
+        order: order,
+      });
+    })
+    .catch((error) => {
+      console.error("Error updating order: ", error);
+      res.status(500).json({
+        message: "Failed to update order",
+      });
+    });
 }
